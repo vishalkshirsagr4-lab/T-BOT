@@ -15,9 +15,11 @@ from services.video_service import VideoService
 from services.payment_service import PaymentService
 
 from middleware.rate_limiter import check_rate_limit
+from telegram_bot.video_delivery import send_secure_video_copy_and_schedule
 
 
 logger = logging.getLogger(__name__)
+
 
 # System configuration requirements
 ADMIN_CHAT_ID = 7941870327
@@ -237,14 +239,19 @@ async def random_video_callback(update: Update, context: ContextTypes.DEFAULT_TY
     last_error = None
     for video in candidates:
         try:
-            await context.bot.copy_message(
-                chat_id=user_id,
+            copied = await send_secure_video_copy_and_schedule(
+                context=context,
+                user_id=user_id,
                 from_chat_id=video["telegram_chat_id"],
-                message_id=video["telegram_message_id"],
+                from_message_id=video["telegram_message_id"],
                 reply_markup=_next_random_video_keyboard(),
+                video_record=video,
             )
-            return
+            if copied is not None:
+                return
+
         except BadRequest as e:
+
             last_error = e
             msg = str(e).lower()
             logger.warning(
@@ -285,7 +292,6 @@ async def stream_delivery_callback(update: Update, context: ContextTypes.DEFAULT
     video_id = query.data.split("_")[1]
     user_id = query.from_user.id
 
-
     # Enforcement checkpoint verification
     video = await VideoService.get_collection().find_one({"video_id": video_id})
     if not video:
@@ -298,19 +304,35 @@ async def stream_delivery_callback(update: Update, context: ContextTypes.DEFAULT
             kb = [[InlineKeyboardButton("💳 View Premium Upgrades", callback_data="buy_premium")]]
             await query.message.reply_text(
                 "🔒 This high-speed media stream is reserved for Premium tier subscribers.",
-                reply_markup=InlineKeyboardMarkup(kb)
+                reply_markup=InlineKeyboardMarkup(kb),
             )
             return
 
     try:
-        await context.bot.copy_message(
-            chat_id=user_id,
+        copied = await send_secure_video_copy_and_schedule(
+            context=context,
+            user_id=user_id,
             from_chat_id=video["telegram_chat_id"],
-            message_id=video["telegram_message_id"],
+            from_message_id=video["telegram_message_id"],
             reply_markup=_next_random_video_keyboard(),
+            video_record=video,
         )
+        if copied is not None:
+            try:
+                await VideoService.register_video(
+                    title=video.get("title", "Untitled"),
+                    category=video.get("category", "general"),
+                    tags=video.get("tags", []) or [],
+                    chat_id=user_id,
+                    message_id=copied.message_id,
+                    is_premium=video.get("is_premium", True),
+                    description=video.get("description", ""),
+                )
+            except Exception:
+                logger.exception("Failed to register delivered video record")
     except Exception:
         await query.message.reply_text("🚧 Unable to deliver the target message. Please try again.")
+
 
 
 async def premium_purchase_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
