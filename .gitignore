@@ -1,0 +1,32 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+.venv/
+
+# Environment variables (VERY IMPORTANT)
+.env
+
+# Logs
+*.log
+
+# Database files (if any local db used)
+*.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# FastAPI / uvicorn cache
+*.sqlite3
+
+# Node modules (only if you used whatsapp.js or node tools)
+node_modules/

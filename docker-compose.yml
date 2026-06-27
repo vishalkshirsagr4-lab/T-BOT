@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  bot-app:
+    build: .
+    container_name: telegram_premium_engine
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - BOT_TOKEN=1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ
+      - MONGO_URI=mongodb://admin:secret_password@mongodb:27017/bot_db?authSource=admin
+      - DB_NAME=premium_video_bot
+      - ADMIN_JWT_SECRET=super_secure_jwt_secret_key_change_me
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongo:6.0
+    container_name: production_mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=secret_password
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:
