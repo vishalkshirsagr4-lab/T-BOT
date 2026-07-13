@@ -188,9 +188,10 @@ async def register_channel_content_capture(update: Update, context: ContextTypes
         return
 
     origin = update.message.forward_origin
-    if not origin or origin.type != "channel":
+    # Accept forwarded content from any origin (channels, groups, supergroups, users).
+    if not origin or not getattr(origin, "chat", None) or not getattr(origin, "message_id", None):
         await update.message.reply_text(
-            "❌ Error: You must forward the video directly from a Telegram Channel, not from a user."
+            "❌ Error: Unable to extract origin information. Forward the media directly from its source."
         )
         return
 
@@ -397,6 +398,8 @@ async def execute_ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def register_admin_routes(app: Application):
     app.add_handler(CommandHandler("admin", admin_panel_command))
+    # Capture forwarded media (from channels, groups, or users) for admins to register.
+    app.add_handler(MessageHandler(filters.FORWARDED, register_channel_content_capture))
 
     app.add_handler(CallbackQueryHandler(admin_home_callback, pattern=r"^admin_home$"))
     app.add_handler(CallbackQueryHandler(admin_list_videos_callback, pattern=r"^admin_list_videos$"))
