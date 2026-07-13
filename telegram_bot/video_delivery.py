@@ -100,7 +100,36 @@ async def send_secure_video_copy_and_schedule(
             reply_markup=reply_markup,
         )
 
-    schedule_video_deletion(context.bot, user_id, copied.message_id)
-    return copied
+    # If copying succeeded, schedule deletion and return.
+    try:
+        schedule_video_deletion(context.bot, user_id, copied.message_id)
+        return copied
+    except Exception:
+        # If copied isn't a valid Message object for some reason, fallthrough to fallback below.
+        pass
+
+    # Fallback strategy: if we have a stored file_id for the media, send it directly.
+    if video_record:
+        file_id = video_record.get("file_id")
+        file_type = video_record.get("file_type")
+        if file_id and file_type:
+            try:
+                if file_type == "video":
+                    sent = await context.bot.send_video(chat_id=user_id, video=file_id, reply_markup=reply_markup)
+                elif file_type == "document":
+                    sent = await context.bot.send_document(chat_id=user_id, document=file_id, reply_markup=reply_markup)
+                elif file_type == "animation":
+                    sent = await context.bot.send_animation(chat_id=user_id, animation=file_id, reply_markup=reply_markup)
+                else:
+                    # Unknown type: attempt to send as document
+                    sent = await context.bot.send_document(chat_id=user_id, document=file_id, reply_markup=reply_markup)
+
+                schedule_video_deletion(context.bot, user_id, sent.message_id)
+                return sent
+            except Exception:
+                logger.exception("Fallback send by file_id failed for user=%s file_id=%s", user_id, file_id)
+
+    # If all strategies failed, return None
+    return None
 
 

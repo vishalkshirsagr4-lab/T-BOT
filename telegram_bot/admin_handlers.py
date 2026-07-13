@@ -215,7 +215,32 @@ async def register_channel_content_capture(update: Update, context: ContextTypes
         "telegram_chat_id": telegram_chat_id,
         "telegram_message_id": telegram_message_id,
         "is_premium": True,
+        # Attempt to capture the media file_id so the bot can send the file directly if copying fails.
+        "file_id": None,
+        "file_type": None,
     }
+
+    # Extract media file_id from the forwarded message if present.
+    msg = update.message
+    try:
+        if getattr(msg, "video", None):
+            doc["file_id"] = msg.video.file_id
+            doc["file_type"] = "video"
+        elif getattr(msg, "document", None):
+            doc["file_id"] = msg.document.file_id
+            doc["file_type"] = "document"
+        elif getattr(msg, "animation", None):
+            doc["file_id"] = msg.animation.file_id
+            doc["file_type"] = "animation"
+        elif getattr(msg, "photo", None):
+            # photo is a list of sizes; pick the largest
+            photos = msg.photo
+            if photos:
+                doc["file_id"] = photos[-1].file_id
+                doc["file_type"] = "photo"
+    except Exception:
+        # non-fatal; continue without file_id
+        pass
 
     await Database.db.videos.insert_one(doc)
     await update.message.reply_text(
